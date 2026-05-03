@@ -1,17 +1,13 @@
 import { useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { sb } from '../lib/supabase.js';
 
-const CONDITION_MAP = {
-  'NUEVO':   'badge-nuevo',
-  'GRADO A': 'badge-a',
-  'GRADO B': 'badge-b',
-  'GRADO C': 'badge-c',
-};
-
-function fmt(n) { return `$${parseFloat(n || 0).toFixed(2)}`; }
+const SW = 1.5;
+const COND_MAP = { 'NUEVO': 'badge-nuevo', 'GRADO A': 'badge-a', 'GRADO B': 'badge-b', 'GRADO C': 'badge-c' };
+const fmt = n => `$${parseFloat(n || 0).toFixed(2)}`;
 
 export default function DevicesTable({ devices, onEdit, onRefresh }) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch]     = useState('');
   const [deleting, setDeleting] = useState(null);
   const [toggling, setToggling] = useState(null);
 
@@ -46,38 +42,26 @@ export default function DevicesTable({ devices, onEdit, onRefresh }) {
     <div className="space-y-4">
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Total',       value: total },
-          { label: 'Disponibles', value: disponibles },
-          { label: 'Categorías',  value: categories },
-        ].map(s => (
-          <div key={s.label} className="card text-center">
-            <p className="text-2xl font-bold text-text1">{s.value}</p>
+        {[{ label: 'Total', value: total }, { label: 'Disponibles', value: disponibles }, { label: 'Categorías', value: categories }].map(s => (
+          <div key={s.label} className="card text-center py-3">
+            <p className="text-xl font-semibold text-text1">{s.value}</p>
             <p className="text-text3 text-xs mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Search */}
-      <input
-        className="input"
-        placeholder="Buscar por nombre o memoria…"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
+      <input className="input" placeholder="Buscar por nombre o memoria…" value={search} onChange={e => setSearch(e.target.value)} />
 
-      {/* Table */}
       <div className="card p-0 overflow-x-auto">
         {filtered.length === 0 ? (
           <p className="text-text3 text-sm text-center py-8">
-            {devices.length === 0 ? 'Aún no tienes equipos. ¡Agrega uno desde la calculadora!' : 'Sin resultados.'}
+            {devices.length === 0 ? 'Aún no tienes equipos. Agrega uno desde la calculadora.' : 'Sin resultados.'}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-text3 text-xs">
                 <th className="text-left px-4 py-3 font-medium">Equipo</th>
-                <th className="text-left px-3 py-3 font-medium">Condición</th>
                 <th className="text-right px-3 py-3 font-medium">Precio</th>
                 <th className="text-right px-3 py-3 font-medium hidden sm:table-cell">Inicial</th>
                 <th className="text-right px-3 py-3 font-medium hidden sm:table-cell">Cuota</th>
@@ -86,51 +70,36 @@ export default function DevicesTable({ devices, onEdit, onRefresh }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((d, i) => (
-                <tr
-                  key={d.id}
-                  className={`border-b border-border last:border-0 hover:bg-bg3/40 transition-colors ${!d.available ? 'opacity-50' : ''}`}
-                >
+              {filtered.map(d => (
+                <tr key={d.id} className={`border-b border-border last:border-0 transition-colors hover:bg-bg3/20 ${!d.available ? 'opacity-40' : ''}`}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-text1 leading-tight">{d.name}</p>
-                    {d.memory && <p className="text-text3 text-xs">{d.memory}</p>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-text1 leading-tight">{d.name}{d.memory ? ` ${d.memory}` : ''}</p>
+                      <span className={COND_MAP[d.condition] || 'badge'}>{d.condition}</span>
+                    </div>
+                    {d.desc && <p className="text-text3 text-xs mt-0.5">{d.desc}</p>}
                   </td>
-                  <td className="px-3 py-3">
-                    <span className={CONDITION_MAP[d.condition] || 'badge'}>{d.condition}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right font-mono text-accent font-medium">
-                    {fmt(d.finalPrice)}
-                  </td>
-                  <td className="px-3 py-3 text-right font-mono text-text2 hidden sm:table-cell">
-                    {fmt(d.initialAmt)}
-                  </td>
-                  <td className="px-3 py-3 text-right font-mono text-text2 hidden sm:table-cell">
-                    {fmt(d.installAmt)}
-                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-accent font-semibold">{fmt(d.finalPrice)}</td>
+                  <td className="px-3 py-3 text-right font-mono text-text2 text-xs hidden sm:table-cell">{fmt(d.initialAmt)}</td>
+                  <td className="px-3 py-3 text-right font-mono text-text2 text-xs hidden sm:table-cell">{fmt(d.installAmt)}</td>
                   <td className="px-3 py-3 text-center">
                     <button
                       onClick={() => handleToggle(d)}
                       disabled={toggling === d.id}
-                      className={`w-8 h-5 rounded-full transition-colors relative ${d.available ? 'bg-accent' : 'bg-border2'}`}
+                      className={`avail-toggle ${d.available ? 'on' : 'off'}`}
                       title={d.available ? 'Disponible' : 'No disponible'}
                     >
-                      <span className={`absolute top-0.5 w-4 h-4 bg-bg rounded-full shadow transition-all ${d.available ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className="avail-toggle-knob" />
                     </button>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex gap-1 justify-center">
-                      <button
-                        className="btn-ghost py-1 px-2 text-xs"
-                        onClick={() => onEdit && onEdit(d)}
-                      >
-                        Editar
+                      <button className="btn gap-1.5 py-1 px-2 text-xs" onClick={() => onEdit && onEdit(d)}>
+                        <Pencil size={11} strokeWidth={SW} /> Editar
                       </button>
-                      <button
-                        className="btn-danger py-1 px-2 text-xs"
-                        onClick={() => handleDelete(d)}
-                        disabled={deleting === d.id}
-                      >
-                        {deleting === d.id ? <span className="spinner" /> : 'Borrar'}
+                      <button className="btn-danger gap-1.5 py-1 px-2 text-xs" onClick={() => handleDelete(d)} disabled={deleting === d.id}>
+                        {deleting === d.id ? <span className="spinner" /> : <Trash2 size={11} strokeWidth={SW} />}
+                        Borrar
                       </button>
                     </div>
                   </td>
