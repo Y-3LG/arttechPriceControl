@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply bg-bg text-text1 font-sans antialiased;
+    min-height: 100vh;
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-border2 rounded-full; }
+}
+
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-bg1 border border-border rounded-card p-4;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-btn
+           font-medium text-sm transition-colors cursor-pointer border-0 outline-none
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-bg hover:bg-[#d4ff1a] active:bg-[#b8eb00];
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:bg-[#ff3333] active:bg-[#e60000];
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-text2 hover:bg-bg3 hover:text-text1 border border-border;
+  }
+  .btn-secondary {
+    @apply btn bg-bg2 text-text1 hover:bg-bg3 border border-border;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full bg-bg2 border border-border rounded-btn px-3 py-2 text-sm text-text1
+           placeholder:text-text3 focus:outline-none focus:border-border2 transition-colors;
+  }
+  .select {
+    @apply input appearance-none cursor-pointer;
+  }
+  .label {
+    @apply block text-xs font-medium text-text2 mb-1;
+  }
+
+  /* Section title */
+  .section-title {
+    @apply text-base font-semibold text-text1;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+  .badge-nuevo {
+    @apply badge bg-accent/10 text-accent border border-accent/20;
+  }
+  .badge-a {
+    @apply badge bg-blue-500/10 text-blue-400 border border-blue-500/20;
+  }
+  .badge-b {
+    @apply badge bg-yellow-500/10 text-yellow-400 border border-yellow-500/20;
+  }
+  .badge-c {
+    @apply badge bg-orange-500/10 text-orange-400 border border-orange-500/20;
+  }
+
+  /* Checkbox label */
+  .chk-label {
+    @apply flex items-center gap-2 text-sm text-text2 cursor-pointer select-none;
+  }
+  .chk-label input[type="checkbox"] {
+    @apply w-4 h-4 rounded border-border bg-bg2 accent-accent cursor-pointer;
+  }
+
+  /* Result box */
+  .result-box {
+    @apply bg-bg2 border border-border2 rounded-card p-4 font-mono text-sm;
+  }
+
+  /* Message box */
+  .msg-box {
+    @apply bg-bg2 border border-border rounded-card p-3 font-mono text-xs text-text1
+           whitespace-pre-wrap leading-relaxed;
+  }
+
+  /* Spinner */
+  .spinner {
+    @apply inline-block w-4 h-4 border-2 border-border2 border-t-accent rounded-full animate-spin;
+  }
+
+  /* Toast */
+  .toast {
+    @apply fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]
+           px-4 py-2 rounded-btn text-sm font-medium shadow-xl
+           bg-bg1 border border-border text-text1
+           transition-all duration-300;
+  }
+  .toast-error {
+    @apply border-danger/50 text-danger;
+  }
+}
