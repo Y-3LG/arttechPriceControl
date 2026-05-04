@@ -2,9 +2,15 @@ import { useState } from 'react';
 import { Plus, ExternalLink, Copy, Pencil, Trash2 } from 'lucide-react';
 import { sb } from '../lib/supabase.js';
 import PriceListView from './PriceListView.jsx';
+import Select from './ui/Select.jsx';
 
 const SW = 1.5;
-const CONDITIONS = ['NUEVO','GRADO A','GRADO B','GRADO C'];
+const COND_OPTS = [
+  { value: 'NUEVO',   label: 'Nuevo'   },
+  { value: 'GRADO A', label: 'Grado A' },
+  { value: 'GRADO B', label: 'Grado B' },
+  { value: 'GRADO C', label: 'Grado C' },
+];
 function getBrand(name) { return (name || '').split(' ')[0]; }
 function emptyForm() {
   return { name: '', title: '', footer: '', filter_condition: '', filter_brand: '', show_initial: true, show_cuotas: true, show_price: true, discount_pct: '' };
@@ -18,7 +24,8 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
   const [preview, setPreview]   = useState(null);
   const [deleting, setDeleting] = useState(null);
 
-  const brands = [...new Set(devices.map(d => getBrand(d.name)))].filter(Boolean).sort();
+  const brands    = [...new Set(devices.map(d => getBrand(d.name)))].filter(Boolean).sort();
+  const brandOpts = brands.map(b => ({ value: b, label: b }));
 
   function openNew() { setForm(emptyForm()); setEditList(null); setShowForm(true); setPreview(null); }
   function openEdit(l) {
@@ -36,16 +43,13 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
     if (!form.name.trim() || !form.title.trim()) { window.toast('Nombre y título son requeridos', true); return; }
     setSaving(true);
     const payload = { ...form, user_id: user.id, discount_pct: parseFloat(form.discount_pct) || 0 };
-    let err;
-    if (editList) {
-      err = (await sb.from('price_lists').update(payload).eq('id', editList.id)).error;
-    } else {
-      err = (await sb.from('price_lists').insert(payload)).error;
-    }
+    const err = editList
+      ? (await sb.from('price_lists').update(payload).eq('id', editList.id)).error
+      : (await sb.from('price_lists').insert(payload)).error;
     setSaving(false);
     if (err) { window.toast(err.message, true); return; }
     window.toast(editList ? 'Lista actualizada' : 'Lista creada');
-    setShowForm(false); onRefresh && onRefresh();
+    setShowForm(false); onRefresh?.();
   }
 
   async function handleDelete(l) {
@@ -56,7 +60,7 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
     if (error) { window.toast(error.message, true); return; }
     window.toast('Lista eliminada');
     if (preview?.id === l.id) setPreview(null);
-    onRefresh && onRefresh();
+    onRefresh?.();
   }
 
   function copyLink(l) {
@@ -100,17 +104,11 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="label">Filtrar por condición</label>
-              <select className="select" value={form.filter_condition} onChange={e => set('filter_condition', e.target.value)}>
-                <option value="">Todas</option>
-                {CONDITIONS.map(c => <option key={c}>{c}</option>)}
-              </select>
+              <Select value={form.filter_condition} onChange={v => set('filter_condition', v)} options={COND_OPTS} placeholder="Todas" />
             </div>
             <div>
               <label className="label">Filtrar por marca</label>
-              <select className="select" value={form.filter_brand} onChange={e => set('filter_brand', e.target.value)}>
-                <option value="">Todas</option>
-                {brands.map(b => <option key={b}>{b}</option>)}
-              </select>
+              <Select value={form.filter_brand} onChange={v => set('filter_brand', v)} options={brandOpts} placeholder="Todas" />
             </div>
           </div>
 
@@ -131,15 +129,14 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
 
           <div>
             <label className="label">Descuento de promoción (%)</label>
-            <input className="input" type="number" placeholder="0" min="0" max="100"
+            <input className="input" type="number" onWheel={e => e.target.blur()} placeholder="0" min="0" max="100"
               value={form.discount_pct} onChange={e => set('discount_pct', e.target.value)} />
             <p className="text-text3 text-xs mt-1">Dejar en 0 para no aplicar descuento.</p>
           </div>
 
           <div>
             <label className="label">Nota al pie</label>
-            <input className="input" placeholder="Precios sujetos a cambio sin previo aviso"
-              value={form.footer} onChange={e => set('footer', e.target.value)} />
+            <input className="input" placeholder="Precios sujetos a cambio…" value={form.footer} onChange={e => set('footer', e.target.value)} />
           </div>
 
           <div className="flex gap-2">
@@ -155,7 +152,6 @@ export default function ListsManager({ lists, devices, user, onRefresh }) {
       {lists.length === 0 && !showForm ? (
         <div className="card text-center py-8">
           <p className="text-text3 text-sm">No tienes listas aún.</p>
-          <p className="text-text3 text-xs mt-1">Crea una para compartir tu catálogo.</p>
         </div>
       ) : (
         <div className="space-y-3">

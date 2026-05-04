@@ -1,62 +1,81 @@
 import { useState, useEffect } from 'react';
-import { Copy, Check, X } from 'lucide-react';
+import { Copy, Check, X, Plus } from 'lucide-react';
 import { sb, toRow } from '../lib/supabase.js';
+import Select from './ui/Select.jsx';
 
-const RAM_OPTIONS = ['2GB','3GB','4GB','6GB','8GB','12GB','16GB'];
-const ROM_OPTIONS = ['64GB','128GB','256GB','512GB','1TB','2TB'];
-const CONDITIONS  = ['NUEVO','GRADO A','GRADO B','GRADO C'];
-const PERIODS     = ['QUINCENALES','MENSUALES'];
 const SW = 1.5;
+
+const RAM_OPTS = ['2GB','3GB','4GB','6GB','8GB','12GB','16GB'].map(v => ({ value: v, label: v }));
+const ROM_OPTS = ['64GB','128GB','256GB','512GB','1TB','2TB'].map(v => ({ value: v, label: v }));
+const COND_OPTS = [
+  { value: 'NUEVO',   label: 'Nuevo'   },
+  { value: 'GRADO A', label: 'Grado A' },
+  { value: 'GRADO B', label: 'Grado B' },
+  { value: 'GRADO C', label: 'Grado C' },
+];
+const PERIOD_OPTS = [
+  { value: 'QUINCENALES', label: 'Quincenales' },
+  { value: 'MENSUALES',   label: 'Mensuales'   },
+];
 
 function calcResults(cost, gainPct, initialPct, installments, manualPrice) {
   let finalPrice = manualPrice != null ? manualPrice : 0;
   if (manualPrice == null) {
-    const gain = parseFloat(gainPct) || 0;
-    const c    = parseFloat(cost)    || 0;
-    finalPrice = c > 0 ? c * (1 + gain / 100) : 0;
+    const c = parseFloat(cost) || 0;
+    finalPrice = c > 0 ? c * (1 + (parseFloat(gainPct) || 0) / 100) : 0;
   }
-  const initialAmt = finalPrice * (parseFloat(initialPct) / 100);
-  const remaining  = finalPrice - initialAmt;
-  const n          = parseInt(installments) || 1;
-  const installAmt = remaining / n;
+  const initialAmt = finalPrice * ((parseFloat(initialPct) || 0) / 100);
+  const n = parseInt(installments) || 1;
+  const installAmt = (finalPrice - initialAmt) / n;
   return { finalPrice, initialAmt, installAmt };
 }
 
 function buildMsg(device) {
   const mem = device.memory || [device.ram, device.rom].filter(Boolean).join('/');
-  let line1 = device.name.toUpperCase();
+  let line1 = (device.name || '').toUpperCase();
   if (mem) line1 += ` ${mem}`;
-  const lines = [line1, device.condition, ''];
+  const lines = [line1, device.condition || '', ''];
   if (device.initialAmt > 0)
-    lines.push(`INICIAL ${Math.round(device.initialPct)}%: $${device.initialAmt.toFixed(2)}`);
+    lines.push(`INICIAL ${Math.round(device.initialPct || 0)}%: $${device.initialAmt.toFixed(2)}`);
   if (device.installments > 0)
     lines.push(`+ ${device.installments} CUOTAS ${device.period} DE: $${device.installAmt.toFixed(2)}`);
   return lines.join('\n');
 }
 
+function numInput(val, setter, clearManual) {
+  return {
+    type: 'number',
+    onWheel: e => e.target.blur(),
+    value: val,
+    onChange: e => { setter(e.target.value); if (clearManual) clearManual(); },
+  };
+}
+
 export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) {
   const isEdit = !!editDevice;
 
-  const [name, setName]           = useState('');
-  const [ramSel, setRamSel]       = useState('8GB');
+  const [name, setName]         = useState('');
+  const [ramSel, setRamSel]     = useState('8GB');
   const [ramCustom, setRamCustom] = useState('');
-  const [romSel, setRomSel]       = useState('256GB');
+  const [romSel, setRomSel]     = useState('256GB');
   const [romCustom, setRomCustom] = useState('');
   const [condition, setCondition] = useState('GRADO A');
-  const [desc, setDesc]           = useState('');
-  const [currency, setCurrency]   = useState('USD');
-  const [rate, setRate]           = useState('');
-  const [cost, setCost]           = useState('');
-  const [gainPct, setGainPct]     = useState('30');
+  const [desc, setDesc]         = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [rate, setRate]         = useState('');
+  const [cost, setCost]         = useState('');
+  const [gainPct, setGainPct]   = useState('30');
   const [initialPct, setInitialPct] = useState('30');
   const [installments, setInstallments] = useState('6');
-  const [period, setPeriod]       = useState('QUINCENALES');
+  const [period, setPeriod]     = useState('QUINCENALES');
   const [manualPrice, setManualPrice] = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [copied, setCopied]       = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [copied, setCopied]     = useState(false);
 
-  const ram    = ramSel === '__otro__' ? ramCustom : ramSel;
-  const rom    = romSel === '__otro__' ? romCustom : romSel;
+  const ramIsCustom = !RAM_OPTS.find(o => o.value === ramSel);
+  const romIsCustom = !ROM_OPTS.find(o => o.value === romSel);
+  const ram    = ramIsCustom ? ramCustom : ramSel;
+  const rom    = romIsCustom ? romCustom : romSel;
   const memory = ram && rom ? `${ram}/${rom}` : (ram || rom || '');
 
   const costUsd = currency === 'Bs' && rate
@@ -64,33 +83,38 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
     : (parseFloat(cost) || 0);
 
   const hasManual = manualPrice !== '' && !isNaN(parseFloat(manualPrice));
+  const clearManual = () => setManualPrice('');
+
   const { finalPrice, initialAmt, installAmt } = calcResults(
     costUsd, gainPct, initialPct, installments, hasManual ? parseFloat(manualPrice) : null
   );
 
   const device = {
-    name, ram, rom, memory, condition, desc, finalPrice,
-    initialPct: parseFloat(initialPct), initialAmt,
-    installments: parseInt(installments), installAmt, period, available: true, msg: ''
+    name: name ?? '', ram: ram ?? '', rom: rom ?? '', memory: memory ?? '',
+    condition: condition ?? 'GRADO A', desc: desc ?? '', finalPrice,
+    initialPct: parseFloat(initialPct) || 0, initialAmt,
+    installments: parseInt(installments) || 6, installAmt,
+    period: period ?? 'QUINCENALES', available: true, msg: '',
   };
   device.msg = buildMsg(device);
 
   useEffect(() => {
     if (!editDevice) { resetForm(); return; }
     const d = editDevice;
-    setName(d.name || '');
+    setName(d.name ?? '');
     const r = d.ram || '';
-    if (RAM_OPTIONS.includes(r)) { setRamSel(r); setRamCustom(''); } else { setRamSel('__otro__'); setRamCustom(r); }
+    if (RAM_OPTS.find(o => o.value === r)) { setRamSel(r); setRamCustom(''); }
+    else { setRamSel('__otro__'); setRamCustom(r); }
     const ro = d.rom || '';
-    if (ROM_OPTIONS.includes(ro)) { setRomSel(ro); setRomCustom(''); } else { setRomSel('__otro__'); setRomCustom(ro); }
-    setCondition(d.condition || 'GRADO A');
-    setDesc(d.desc || '');
-    setGainPct('30');
-    setInitialPct(String(d.initialPct || 30));
-    setInstallments(String(d.installments || 6));
-    setPeriod(d.period || 'QUINCENALES');
-    setManualPrice(String(d.finalPrice || ''));
-    setCost(''); setCurrency('USD'); setRate('');
+    if (ROM_OPTS.find(o => o.value === ro)) { setRomSel(ro); setRomCustom(''); }
+    else { setRomSel('__otro__'); setRomCustom(ro); }
+    setCondition(d.condition ?? 'GRADO A');
+    setDesc(d.desc ?? '');
+    setInitialPct(String(d.initialPct ?? 30));
+    setInstallments(String(d.installments ?? 6));
+    setPeriod(d.period ?? 'QUINCENALES');
+    setManualPrice(String(d.finalPrice ?? ''));
+    setCost(''); setCurrency('USD'); setRate(''); setGainPct('30');
   }, [editDevice]);
 
   function resetForm() {
@@ -105,46 +129,32 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
     if (finalPrice <= 0) { window.toast('El precio debe ser mayor a 0', true); return; }
     setLoading(true);
     const row = toRow(device, user.id);
-    let err;
-    if (isEdit && !asVariant) {
-      err = (await sb.from('devices').update(row).eq('id', editDevice.id)).error;
-    } else {
-      err = (await sb.from('devices').insert(row)).error;
-    }
+    const err = isEdit && !asVariant
+      ? (await sb.from('devices').update(row).eq('id', editDevice.id)).error
+      : (await sb.from('devices').insert(row)).error;
     setLoading(false);
     if (err) { window.toast(err.message, true); return; }
     window.toast(asVariant ? 'Variante creada' : isEdit ? 'Equipo actualizado' : 'Equipo guardado');
-    onSaved && onSaved();
+    onSaved?.();
     if (!isEdit) resetForm();
   }
 
   function copyMsg() {
     navigator.clipboard.writeText(device.msg).then(() => {
-      setCopied(true);
-      window.toast('Mensaje copiado');
+      setCopied(true); window.toast('Mensaje copiado');
       setTimeout(() => setCopied(false), 2000);
     });
   }
 
-  const condBtnStyle = (c) => ({
-    padding: '5px 12px',
-    borderRadius: 8,
-    fontSize: 12,
-    fontWeight: 500,
-    border: `1px solid ${condition === c ? 'rgba(200,255,0,0.4)' : '#2a2a2a'}`,
-    color: condition === c ? '#c8ff00' : '#888888',
-    background: 'transparent',
-    cursor: 'pointer',
-    transition: 'border-color 0.15s, color 0.15s',
-    fontFamily: 'DM Sans, sans-serif',
-  });
+  const RAM_ALL = [...RAM_OPTS, { value: '__otro__', label: 'Otra…' }];
+  const ROM_ALL = [...ROM_OPTS, { value: '__otro__', label: 'Otra…' }];
 
   return (
     <div className="space-y-4">
       {isEdit && (
         <div className="edit-banner">
           <div>
-            <div className="edit-banner-text">✏ Editando: {editDevice.name}</div>
+            <div className="edit-banner-text">Editando: {editDevice.name}</div>
             {editDevice.memory && <div className="edit-banner-sub">{editDevice.memory}</div>}
           </div>
           <button className="btn gap-1.5 text-xs py-1.5" onClick={onCancelEdit}>
@@ -164,29 +174,19 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label">RAM</label>
-              <select className="select" value={ramSel} onChange={e => setRamSel(e.target.value)}>
-                {RAM_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                <option value="__otro__">Otra…</option>
-              </select>
+              <Select value={ramSel} onChange={setRamSel} options={RAM_ALL} placeholder="RAM" />
               {ramSel === '__otro__' && <input className="input mt-1" placeholder="Ej: 6GB" value={ramCustom} onChange={e => setRamCustom(e.target.value)} />}
             </div>
             <div>
               <label className="label">ROM</label>
-              <select className="select" value={romSel} onChange={e => setRomSel(e.target.value)}>
-                {ROM_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                <option value="__otro__">Otra…</option>
-              </select>
+              <Select value={romSel} onChange={setRomSel} options={ROM_ALL} placeholder="ROM" />
               {romSel === '__otro__' && <input className="input mt-1" placeholder="Ej: 128GB" value={romCustom} onChange={e => setRomCustom(e.target.value)} />}
             </div>
           </div>
 
           <div>
             <label className="label">Condición</label>
-            <div className="flex gap-2 flex-wrap">
-              {CONDITIONS.map(c => (
-                <button key={c} style={condBtnStyle(c)} onClick={() => setCondition(c)}>{c}</button>
-              ))}
-            </div>
+            <Select value={condition} onChange={setCondition} options={COND_OPTS} placeholder="Condición" />
           </div>
 
           <div>
@@ -198,16 +198,13 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
             <label className="label">Moneda del costo</label>
             <div className="flex gap-2">
               {['USD','Bs'].map(c => (
-                <button key={c}
-                  onClick={() => setCurrency(c)}
-                  style={{
-                    padding: '5px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                    border: `1px solid ${currency === c ? 'rgba(200,255,0,0.4)' : '#2a2a2a'}`,
-                    color: currency === c ? '#c8ff00' : '#888888',
-                    background: 'transparent', cursor: 'pointer', transition: 'border-color 0.15s, color 0.15s',
-                    fontFamily: 'DM Sans, sans-serif',
-                  }}
-                >{c}</button>
+                <button key={c} onClick={() => setCurrency(c)} style={{
+                  padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                  border: `1px solid ${currency === c ? 'rgba(255,255,255,0.25)' : '#2a2a2a'}`,
+                  color: currency === c ? '#ffffff' : '#888888',
+                  background: 'transparent', cursor: 'pointer', transition: 'border-color 0.15s, color 0.15s',
+                  fontFamily: 'DM Sans, sans-serif',
+                }}>{c}</button>
               ))}
             </div>
           </div>
@@ -215,10 +212,8 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
           {currency === 'Bs' && (
             <div>
               <label className="label">Tasa del día (Bs/USD)</label>
-              <input className="input" type="number" placeholder="Ej: 90.5" value={rate} onChange={e => setRate(e.target.value)} />
-              {rate && cost && (
-                <p className="text-text3 text-xs mt-1">≈ ${costUsd.toFixed(2)} USD</p>
-              )}
+              <input className="input" {...numInput(rate, setRate)} placeholder="Ej: 90.5" />
+              {rate && cost && <p className="text-text3 text-xs mt-1">≈ ${costUsd.toFixed(2)} USD</p>}
             </div>
           )}
         </div>
@@ -227,44 +222,38 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
         <div className="space-y-3">
           <div>
             <label className="label">Precio de costo ({currency})</label>
-            <input className="input" type="number" placeholder="0.00" value={cost}
-              onChange={e => { setCost(e.target.value); setManualPrice(''); }} />
+            <input className="input" {...numInput(cost, setCost, clearManual)} placeholder="0.00" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label">Ganancia %</label>
-              <input className="input" type="number" placeholder="30" value={gainPct}
-                onChange={e => { setGainPct(e.target.value); setManualPrice(''); }} />
+              <input className="input" {...numInput(gainPct, setGainPct, clearManual)} placeholder="30" />
             </div>
             <div>
               <label className="label">Inicial %</label>
-              <input className="input" type="number" placeholder="30" value={initialPct}
-                onChange={e => setInitialPct(e.target.value)} />
+              <input className="input" {...numInput(initialPct, setInitialPct)} placeholder="30" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label">N° cuotas</label>
-              <input className="input" type="number" placeholder="6" value={installments}
-                onChange={e => setInstallments(e.target.value)} />
+              <input className="input" {...numInput(installments, setInstallments)} placeholder="6" />
             </div>
             <div>
               <label className="label">Período</label>
-              <select className="select" value={period} onChange={e => setPeriod(e.target.value)}>
-                {PERIODS.map(p => <option key={p}>{p}</option>)}
-              </select>
+              <Select value={period} onChange={setPeriod} options={PERIOD_OPTS} placeholder="Período" />
             </div>
           </div>
 
           <div>
             <label className="label">Ajuste manual de precio</label>
-            <input className="input" type="number" placeholder="Precio final (USD)"
+            <input className="input" type="number" onWheel={e => e.target.blur()} placeholder="Precio final (USD)"
               value={manualPrice} onChange={e => setManualPrice(e.target.value)} />
           </div>
 
-          {/* Result box */}
+          {/* Result */}
           <div className="result-box space-y-2">
             <div className="flex items-baseline justify-between">
               <span className="text-text3 text-xs">Precio final</span>
@@ -275,7 +264,7 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
               <span className="text-text2 font-mono">${initialAmt.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-text3">{installments} cuotas {period.toLowerCase()}</span>
+              <span className="text-text3">{installments} cuotas {(period || '').toLowerCase()}</span>
               <span className="text-text2 font-mono">${installAmt.toFixed(2)}</span>
             </div>
           </div>
@@ -294,22 +283,13 @@ export default function Calculator({ user, editDevice, onSaved, onCancelEdit }) 
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2 pt-2 flex-wrap">
         <button className="btn-primary" onClick={() => handleSave(false)} disabled={loading}>
           {loading ? <span className="spinner" /> : <Check size={14} strokeWidth={SW} />}
           {isEdit ? 'Guardar cambios' : 'Guardar equipo'}
         </button>
-        {isEdit && (
-          <button className="btn" onClick={() => handleSave(true)} disabled={loading}>
-            <Plus size={14} strokeWidth={SW} /> Crear variante
-          </button>
-        )}
-        {isEdit && (
-          <button className="btn" onClick={onCancelEdit}>
-            <X size={14} strokeWidth={SW} /> Descartar
-          </button>
-        )}
+        {isEdit && <button className="btn" onClick={() => handleSave(true)} disabled={loading}><Plus size={14} strokeWidth={SW} /> Crear variante</button>}
+        {isEdit && <button className="btn" onClick={onCancelEdit}><X size={14} strokeWidth={SW} /> Descartar</button>}
       </div>
     </div>
   );

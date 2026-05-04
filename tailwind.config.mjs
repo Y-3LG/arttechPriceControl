@@ -12,7 +12,7 @@ export default {
         text1:   '#e8e8e8',
         text2:   '#888888',
         text3:   '#484848',
-        accent:  '#c8ff00',
+        accent:  '#ffffff',
         danger:  '#ff4d4d',
       },
       fontFamily: {
